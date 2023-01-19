@@ -1,0 +1,1439 @@
+/***
+* Name: Football Festival
+* Author: valeriabladinieres
+* Description: 
+* Tags: Tag1, Tag2, TagN
+***/
+
+model footballFestival
+
+/* Insert your model definition here */
+
+
+global {
+	int n <- 10;
+	int numSup <-  5*n;
+	int nb_happy_pp <- numSup;
+	int nb_not_happy_pp <-numSup-nb_happy_pp;
+	float avGlobal;
+	geometry shape <- cube(200);
+	list JournalistsList <- [];
+	list SecurityList <- [];
+	list Bars <- [{10.0,10.0,0.0},{190.0,80.0,0.0},{180.0,170.0,0.0}];
+	list Shops <- [{40.0,40.0,0.0},{90.0,20.0,0.0},{20.0,120.0,0.0},{190.0,140.0,0.0},{160.0,180.0,0.0}];
+	list LocationJournalists <- [{10.0,10.0,0.0},{190.0,80.0,0.0},{180.0,170.0,0.0},{100.0,140.0,0.0},{100.0,60.0,0.0},{180,20,0},{20,180,0},{80,180,0},{120,10,0}];
+	int sele<-0;
+	agent cur;
+	agent cur2;
+	
+	init {
+		create Supporters number: 5*n{
+			int aux<-rnd(1);
+			if aux=0{
+				team<-'Real';
+				myColor <- #purple;
+			}
+			if aux=1{
+				team<-'Barca';
+				myColor <- #red;
+			}
+		}
+		create Security number: 1{
+			add self to: SecurityList;
+			team<-'Barca';
+		}
+		create Security number: 1{
+			add self to: SecurityList;
+			team<-'Real';
+		}
+		create Journalists number: n{
+			int aux<-rnd(1);
+			if aux=0{
+				team<-'Real';
+			}
+			if aux=1{
+				team<-'Barca';
+			}
+			add self to: JournalistsList;
+			int aux2<-rnd(8);
+			location<-LocationJournalists[aux2] + {rnd(-2.0,2.0),rnd(-2.0,2.0),0};
+		}
+		create Players number: 11{
+			team<-'Real';
+		}
+		create Players number: 11{
+			team<-'Barca';
+		}
+		create Vendors number: n/2{
+			location<-Shops[sele];
+			sele<-sele+1;
+		}
+		create Fanzone number: 1{
+			trait<-'Real';
+			location<-{180,20,0};
+		}
+		create Fanzone number: 1{
+			trait<-'Barca';
+			location<-{20,180,0};
+		}
+		create Bar number: 1{
+		location<-{190.0,80.0,0.0};
+		}
+		create Bar number: 1{
+		location<-{10.0,10.0,0.0};
+		}		
+		create Bar number: 1{
+		location<-{180.0,170.0,0.0};
+		}
+		create Stadium number:1{
+			location<-{100.0,100.0,0.0};
+		}
+		create Hotel number: 1{
+			trait<-'Real';
+			location<-{120,10,0};
+		}
+		create Hotel number: 1{
+			trait<-'Barca';
+			location<-{80,180,0};
+		}
+	}
+}
+
+species Supporters skills: [fipa, moving]{
+	point targetPoint <- nil;
+	rgb myColor;
+	string team;
+	float hooliganlevel<-rnd(1.0);
+	float happiness<-50.0;
+	float generosity<-rnd(1.0);
+	float betdesire<-rnd(1.0);
+	float noisy<-rnd(1.0);
+	bool thirsty<-false;
+	bool inmatch<-false;
+	int nDrinks<-0;
+	float budget<-rnd(1000.0);
+	bool betting<-false;
+	float qbet<-0.0;
+	bool tofanzone;
+	bool myfz<-false;
+	float consumism<-rnd(1.0);
+	float counter<-0.0;
+	bool buying<-false;
+	bool happy <- true;
+	int warning <-0;
+	bool spotted<- false;
+	bool wrongSide;
+	bool havetoDie;
+	bool reported <- false;
+	bool inter <- false;
+	bool askedInter <- false;
+	
+	reflex die when: havetoDie = true{
+		do die;
+	}
+	
+	reflex state when: thirsty = false and inmatch = false and inter = false and targetPoint=nil and time mod 5 = 0 and time>counter{
+		int rand <- rnd(100);
+		if (rand < 15 and rand >5){
+			thirsty <- true;
+			targetPoint<-Bars[rnd(2)];
+			happiness<- happiness-1.0;
+		}
+		if (rand>3 and rand<5){
+			if team='Real'{
+				targetPoint<-{20,180,0};
+				tofanzone<-true;
+			}
+			if team='Barca'{
+				targetPoint<-{180,20,0};
+				tofanzone<-true;
+			}
+		}	
+		if (rand>70){
+			if team='Real'{
+				targetPoint<-{180,20,0};
+				tofanzone<-true;
+			}
+			if team='Barca'{
+				targetPoint<-{20,180,0};
+				tofanzone<-true;
+			}
+		}
+		
+	}
+	
+	reflex utility when: !empty(informs){
+		//calcular utility y comparar con la anterior, si es mas grande ir a la location del inform.
+		loop m over: informs {
+				if m.contents[2]='Match finished'{
+					if team='Real'{
+						int result <- int(m.contents[3])-int(m.contents[4]);
+						happiness<-happiness+hooliganlevel*result*3;
+						if happiness>100.0{
+							happiness<-100.0;
+						}
+						if happiness<0.0{
+							happiness<-0.0;
+						}
+						inmatch<-false;
+					}	
+					if team='Barca'{
+						int result <- int(m.contents[4])-int(m.contents[3]);
+						happiness<-happiness+hooliganlevel*result*3;
+						if happiness>100.0{
+							happiness<-100.0;
+						}
+						if happiness<0.0{
+							happiness<-0.0;
+						}
+						inmatch<-false;
+					}
+					if betting{
+						int rm <-rnd(5);
+						int fcb <- rnd(4);
+						write rm;
+						write fcb;
+						if rm = m.contents[3] or fcb = m.contents[4]{
+							budget<-budget+qbet*2;
+							happiness<-happiness+qbet/8;
+							write 'I got one';
+						}
+						if rm = m.contents[3] and fcb = m.contents[4]{
+							budget<-budget+qbet*50;
+							happiness<-100.0;
+							write 'I got the exact result';
+						}
+						if rm != m.contents[3] and fcb != m.contents[4]{
+							happiness<-happiness-qbet/16;
+							write 'Naaaa';
+						}
+						betting<-false;
+					}
+				}
+				if m.contents[2]='Starting Match'{
+					inmatch<-true;
+					thirsty<-false;
+					int aux2 <-rnd(50);
+					if aux2<49{
+						if team='Real'{
+							targetPoint<- {rnd(70.0,130.0),60.0,0.0};
+							wrongSide <- false;
+						}	
+						if team='Barca'{
+							targetPoint<- {rnd(70.0,130.0),140.0,0.0};
+							wrongSide <- false;
+						}
+					}
+					if aux2>48{
+						if team='Real'{
+							targetPoint<- {rnd(70.0,130.0),140.0,0.0};
+							write name + " I am in the wrong side";
+							wrongSide <- true;
+						}	
+						if team='Barca'{
+							targetPoint<- {rnd(70.0,130.0),60.0,0.0};
+							write name + " I am in the woing side";
+							wrongSide <- true;
+						}
+					}
+					if aux2/8*betdesire>2{
+						qbet<-betdesire*aux2;
+						betting<-true;
+						//ir a lugar donde se apuesta
+						budget<-budget-qbet;
+					}
+					
+					
+				}
+		}
+				
+	}
+	
+	reflex beIdle when: targetPoint = nil{
+		do wander(0.5,360.0,square(5));
+	}
+	
+	reflex moveToTarget when: targetPoint != nil{
+		do goto target:targetPoint;
+	}
+	
+	reflex infanzone when: targetPoint != nil and location distance_to(targetPoint) < 5 and tofanzone and inmatch=false{
+		spotted <- false;
+		ask Fanzone at_distance(7){
+			if self.trait=myself.team{
+				myself.myfz <-true;
+			}
+		}
+		
+		if myfz{
+			counter<-time+150.0;
+			ask Supporters at_distance(7){
+				if myself.hooliganlevel>0.650{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.hooliganlevel*0.3;
+						self.happiness<-self.happiness+myself.hooliganlevel*0.3;
+					}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-2.0;
+						//write myself.name;
+						//write self.name;
+						//write self.spotted;
+						if self.spotted = false {
+					 		self.spotted <-true;
+					 		self.warning <- self.warning +1;
+						 	if self.warning = 1{
+								write myself.name + ': get the hell out of here ' + self.name;
+						 	}
+						 	/*if self.warning = 2{
+								write myself.name + ' going to fight ' + self.name;
+						 	}*/
+						 	if self.warning = 2{
+								write myself.name + ': calling security ' + self.name+ " has "+ self.warning +" warignings";
+								do start_conversation with: [ to :: list(Security), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [self, self.team, self.hooliganlevel]];
+								}
+							}
+							if self.hooliganlevel+self.noisy>0.8{
+								myself.happiness<-myself.happiness-2.0;
+						 	}
+						}
+				}
+				if myself.hooliganlevel<0.650 and myself.hooliganlevel>0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.hooliganlevel*0.3;
+						self.happiness<-self.happiness+myself.hooliganlevel*0.3;
+					}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-1.5;
+						//write myself.name;
+						//write self.name;
+						//write self.spotted;
+						if self.spotted = false {
+					 		self.spotted <-true;
+					 		self.warning <- self.warning +1;
+						 	if self.warning = 1{
+								write myself.name + ': get the hell out of here ' + self.name;
+						 	}
+						 	/*if self.warning = 2{
+								write myself.name + ' going to fight ' + self.name;
+						 	}*/
+						 	if self.warning = 2{
+								write myself.name + ': calling security ' + self.name+ " has "+ self.warning +" warignings";
+								do start_conversation with: [ to :: list(Security), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [self, self.team, self.hooliganlevel]];
+								self.warning <- 2;
+						 	}
+						}
+						if self.hooliganlevel+self.noisy>1.1{
+						 	myself.happiness<-myself.happiness-1.5;
+						}	
+					}
+					
+				}
+				if myself.hooliganlevel<0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.hooliganlevel*0.3;
+						self.happiness<-self.happiness+myself.hooliganlevel*0.3;
+					}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-1.0;
+						//write myself.name;
+						//write self.name;
+						//write self.spotted;
+						if self.spotted = false{
+					 		self.spotted <-true;
+					 		self.warning <- self.warning +1;
+						 	if self.warning = 1{
+								write myself.name + ': get the hell out of here ' + self.name;
+						 	}
+						 	/*if self.warning = 2{
+								write myself.name + ' going to fight ' + self.name;
+						 	}*/
+						 	if self.warning = 2{
+								write myself.name + ': calling security ' + self.name+ " has "+ self.warning +" warignings";
+								do start_conversation with: [ to :: list(Security), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [self, self.team, self.hooliganlevel]];
+
+						 	}
+						}
+						if self.hooliganlevel+self.noisy>1.4{
+						 	myself.happiness<-myself.happiness-1.0;	
+						}
+					}
+				
+				}
+			}
+		}
+		if myfz=false{
+			counter<-time+50.0;
+			ask Supporters at_distance(5){
+				if self.hooliganlevel>0.650{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.hooliganlevel;
+						self.happiness<-self.happiness+myself.hooliganlevel;
+					}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-0.3;
+						self.happiness<-self.happiness-2.0;
+						//write myself.name + ' I am in the wrong zone, dotn care' + self.name;
+						if myself.hooliganlevel+myself.noisy>0.8{
+						 	self.happiness<-self.happiness-2.0;
+						}
+					}
+				}
+				if self.hooliganlevel<0.650 and self.hooliganlevel>0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.hooliganlevel;
+						self.happiness<-self.happiness+myself.hooliganlevel;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-0.3;
+						self.happiness<-self.happiness-1.5;
+						//write myself.name + ' I am in the wrong zone, dotn care ' + self.name;
+						if myself.hooliganlevel+myself.noisy>1.1{
+						 	self.happiness<-self.happiness-1.5;
+						}
+					}
+					
+				}
+				if myself.hooliganlevel<0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.hooliganlevel;
+						self.happiness<-self.happiness+myself.hooliganlevel;
+					}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-0.3;
+						self.happiness<-self.happiness-1.0;
+						//write myself.name + '  I am in the wrong zone, dotn care' + self.name;
+						if myself.hooliganlevel+myself.noisy>0.8{
+						 	self.happiness<-self.happiness-1.0;
+						}
+					}
+				}
+			}
+		}
+		
+		targetPoint<-nil;
+		tofanzone<-false;
+		myfz<-false;
+		
+	}
+	
+	reflex enterStadium when: targetPoint != nil and location distance_to(targetPoint) < 2 and inmatch{
+		spotted <- false;
+		askedInter <- false;
+		ask Supporters at_distance(7){
+			if myself.hooliganlevel>0.650{
+				if self.team=myself.team{
+					myself.happiness<-myself.happiness+((self.noisy*self.hooliganlevel)/3);
+				}
+				if self.team!=myself.team {
+					if myself.spotted = false and myself.wrongSide = true{
+				 		myself.spotted <-true;
+				 		myself.warning <- myself.warning +1;
+					 	if myself.warning = 1{
+							write self.name + ': get the hell out of here ' + myself.name;
+					 	}
+					 	/*if myself.warning = 2{
+							write self.name + ' going to fight ' + myself.name;
+					 	}*/
+					 	if myself.warning = 2{
+							write self.name + ': calling security ' + myself.name+ " has "+ myself.warning +" warignings";
+							do start_conversation with: [ to :: list(Security), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [myself, myself.team, self.hooliganlevel]];
+					 	}
+					}
+					
+					myself.happiness<-myself.happiness-self.noisy*self.hooliganlevel;
+				}
+			}
+			if myself.hooliganlevel<=0.650 and myself.hooliganlevel>=0.350{
+				if self.team=myself.team{
+					myself.happiness<-myself.happiness+((self.noisy*self.hooliganlevel)/3);
+				}
+				if self.team!=myself.team {
+					if myself.spotted = false and myself.wrongSide = true{
+				 		myself.spotted <-true;
+				 		myself.warning <- myself.warning +1;
+					 	if myself.warning = 1{
+							write self.name + ': get the hell out of here ' + myself.name;
+					 	}
+					 	/*if myself.warning = 2{
+							write self.name + ' going to fight ' + myself.name;
+					 	}*/
+					 	if myself.warning = 2{
+							write self.name + ': calling security ' + myself.name+ " has "+ myself.warning +" warignings";
+							do start_conversation with: [ to :: list(Security), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [myself, myself.team, self.hooliganlevel]];
+					 	}
+					}
+					
+					myself.happiness<-myself.happiness-self.noisy*self.hooliganlevel;
+				}
+			}
+			if myself.hooliganlevel<0.350{
+				if self.team=myself.team{
+					myself.happiness<-myself.happiness+((self.noisy*self.hooliganlevel)/3);
+				}
+				if self.team!=myself.team{
+					if myself.spotted = false and myself.wrongSide = true{
+				 		myself.spotted <-true;
+				 		myself.warning <- myself.warning +1;
+					 	if myself.warning = 1{
+							write self.name + ': get the hell out of here ' + myself.name;
+					 	}
+					 	/*if myself.warning = 2{
+							write self.name + ' going to fight ' + myself.name;
+					 	}*/
+					 	if myself.warning = 2{
+							write self.name + ': calling security ' + myself.name+ " has "+ myself.warning +" warignings";
+							do start_conversation with: [ to :: list(Security), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [myself, myself.team, self.hooliganlevel]];
+					 	}
+					}
+					
+					myself.happiness<-myself.happiness-self.noisy*self.hooliganlevel;
+				}				
+			}
+		}	
+		targetPoint<-nil;
+	}
+	
+	reflex buying when: (location distance_to {40.0,40.0,0.0} < 10) or (location distance_to {90.0,20.0,0.0} < 10) or (location distance_to {20.0,120.0,0.0}<10) or (location distance_to {190.0,140.0,0.0}<10) or (location distance_to {160.0,180.0,0.0}<10){
+		point destino;
+		spotted <- false;
+		if buying=false{
+			int aux<-rnd(50);
+			ask Vendors at_distance(10){
+				if aux*myself.consumism > 20 and myself.budget>(aux*myself.consumism+aux*5){
+					destino<-myself.targetPoint;
+					myself.targetPoint<-nil;
+					myself.buying<-true;
+					if aux mod 2= 0{
+						myself.budget<-myself.budget-aux;
+						myself.happiness<-myself.happiness+3.0;
+						self.money<-self.money+aux;
+						self.happiness<-self.happiness+aux/10;
+						//write myself.name + ' Bought a TShirt for ' + aux;	
+					}
+					else{
+						//write myself.name + ' did not buy a TShirt for ' + aux;	
+						self.happiness<-self.happiness-1.0;
+					}
+						
+				}
+				else{
+					self.happiness<-self.happiness-0.1;
+				}		
+			}
+		}
+		//este nuca se usa
+		
+		 if buying=true{
+			int conta<-rnd(10);
+			if conta=10{
+				buying<-false;
+				targetPoint<-destino;
+				if destino=nil{
+					if team='Real'{
+						targetPoint<-{180,20,0};
+						tofanzone<-true;
+					}
+					if team='Barca'{
+						targetPoint<-{20,180,0};
+						tofanzone<-true;
+					}
+				}
+			}
+		} 
+		 
+		
+	}
+	
+	reflex enterBar when: targetPoint != nil and location distance_to(targetPoint) < 2 and thirsty{
+
+		if thirsty=true{
+			nDrinks <- nDrinks +1;
+			budget <- budget -2.0;
+			happiness<-happiness+5;
+			
+			ask Journalists at_distance(7){
+				if myself.hooliganlevel>0.650{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+0.30;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-0.30;
+						}
+					if generosity>0.7{
+						if self.team=myself.team{
+							int aux<-rnd(1);
+							if aux=0{
+								//write myself.name + 'Buying a drink to ' + self.name;
+								self.nDrinks<-self.nDrinks+1;
+								myself.budget<-myself.budget-2.0;
+								self.happiness<-self.happiness+5;
+								}
+							}
+						}
+					}
+				if myself.hooliganlevel<0.650 and myself.hooliganlevel>0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+0.20;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-0.20;
+						}
+					if generosity>0.7{
+						if self.team=myself.team or self.hooliganlevel<0.350{
+							int aux<-rnd(1);
+							if aux=0{
+								//write myself.name + 'Buying a drink to' + self.name;
+								self.nDrinks<-self.nDrinks+1;
+								myself.budget<-myself.budget-2.0;
+								self.happiness<-self.happiness+5;
+								}
+							}
+						}
+					}
+				if myself.hooliganlevel<0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+0.10;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-0.10;
+						}
+					if generosity>0.7{
+						int aux<-rnd(1);
+							if aux=0{
+								//write myself.name + 'Buying a drink to' + self.name;
+								self.nDrinks<-self.nDrinks+1;
+								myself.budget<-myself.budget-2.0;
+								self.happiness<-self.happiness+5;
+								}
+							}
+					}
+			
+				}
+			
+			ask Supporters at_distance(7){
+				if myself.noisy<0.5{
+					if self.noisy<0.5{
+						myself.happiness<-myself.happiness+0.4;
+						self.happiness<-self.happiness+0.4;
+					}
+					else{
+						myself.happiness<-myself.happiness-0.4;
+					}
+				}
+				
+				if myself.hooliganlevel>0.650{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+0.30;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-0.30;
+						}
+					if generosity>0.8{
+						if self.team=myself.team{
+							int aux<-rnd(1);
+							if aux=0{
+								//write myself.name + 'Buying a drink to' + self.name;
+								self.nDrinks<-self.nDrinks+1;
+								myself.budget<-myself.budget-2.0;
+								self.happiness<-self.happiness+0.5;
+								}
+							}
+						}
+					}
+				if myself.hooliganlevel<0.650 and myself.hooliganlevel>0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+0.20;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-0.20;
+						}
+					if generosity>0.8{
+						if self.team=myself.team or self.hooliganlevel<0.350{
+							int aux<-rnd(1);
+							if aux=0{
+								//write myself.name + 'Buying a drink to' + self.name;
+								self.nDrinks<-self.nDrinks+1;
+								myself.budget<-myself.budget-2.0;
+								self.happiness<-self.happiness+0.5;
+								}
+							}
+						}
+					}
+				if myself.hooliganlevel<0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+0.10;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-0.10;
+						}
+					if generosity>0.7{
+						int aux<-rnd(1);
+						if aux=0{
+							//write myself.name + 'Buying a drink to' + self.name;
+							self.nDrinks<-self.nDrinks+1;
+							myself.budget<-myself.budget-2.0;
+							self.happiness<-self.happiness+0.5;
+							}
+						}	
+					}
+				}
+		
+		}
+		targetPoint<-nil;
+		thirsty<-false;				
+	}
+	
+	reflex drunk{
+		ask Supporters at_distance(7){
+			if (self.nDrinks > 3 and self.reported = false) {
+				self.reported <- true;
+				write "\t"+myself.name+": send name to guard of "+ self.name+", he drank "+self.nDrinks;
+				do start_conversation with: [ to :: list(Security), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [self, self.team, self.hooliganlevel]];
+			}
+			
+		}
+		ask Journalists at_distance(7){
+			if self.nDrinks > 5 and self.reported = false{
+				self.reported <- true;
+				write "\t"+myself.name+": send name to guard of "+ self.name+", he drank "+self.nDrinks;
+				do start_conversation with: [ to :: list(Security), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [self, self.team, self.hooliganlevel]];
+			}
+		}
+	}
+	
+	reflex statistics{
+		float av;
+		float c;
+		ask Supporters {
+			av <- av + self.happiness;
+			c <- c +1;
+		}
+		av <- av/c;
+		avGlobal <- av ;
+		
+		if happiness >= av{
+			happy <-true;
+		}
+		else{
+			happy <-false;
+		}
+	}
+	
+	aspect default{
+		draw sphere(1) at: location + {0.0,0.0,1.0} color: myColor;
+		draw pyramid(2) at: location color: myColor;
+	}
+
+}
+
+species Security skills: [fipa, moving]{
+	
+	rgb myColor <- #black;
+	agent nameBadGuy;
+	string teamBG;
+	float hoolig <- 0.0;
+	string team;
+	float happines <- rnd(35.0,80.0);
+	
+	point targetPoint <- nil;
+	bool doingSomething<- false ;
+	list nextTn;
+	list nextTnT;
+	
+	point targetPoint2 <- nil;
+	bool doingSomething2<- false ;
+	list nextTn2;
+	list nextTnT2;
+	
+	
+	
+	reflex mood when: time mod 300 = 0 {
+	 	happines <- rnd(45.0,55.0);
+	}
+		
+	reflex beIdle when: targetPoint = nil and team = "Barca"{
+		do wander;
+	}
+	reflex beIdle2 when: targetPoint2 = nil and team = "Real"{
+		do wander;
+	}
+	
+	reflex moveToTarget when: targetPoint != nil and team = "Barca"{
+		do goto target:targetPoint;
+	}
+	reflex moveToTarget2 when: targetPoint2 != nil and team = "Real"{
+		do goto target:targetPoint2;
+	}
+	
+	reflex utility when: !empty(informs){
+		loop m over: informs {
+			//guy reported
+			int r <- rnd(1);
+			//if the random is 0 goes to the barca guard
+			//if the random is 1 goes to the real  guard
+			if r = 1 and team = "Barca" and cur2 != m.contents[0] and cur != m.contents[0]{
+				cur <- m.contents[0];
+				hoolig <- float(m.contents[2]);
+				//if guard really happy(above average), his team(Real) and guy not very hooligan
+				if happines > 40 and m.contents[1] = team and hoolig < 0.75{
+					ask Supporters{
+						//let go, and reset warnings
+						if m.contents[0] = self{
+							write self.name +" number of warnings "+ self.warning;
+							self.warning <- 0;
+							write "\t"+ myself.name +": he is not a bad guy, I let "+ self.name + "("+ self.team+")"+" go!" ;
+							write self.name +" number of warnings "+ self.warning;
+							myself.doingSomething <- false;
+							myself.nameBadGuy <- nil;
+							myself.teamBG <- nil;
+							myself.targetPoint <- nil;
+						}
+					}
+				}
+				else{
+					if doingSomething = true{
+						if  m.contents[0] != nameBadGuy{
+							write "\t"+"added to waiting list of " + name;
+							add m.contents[0] to: nextTn;
+							add m.contents[1] to: nextTnT;
+						}
+					}
+					if doingSomething = false{
+						nameBadGuy <- (m.contents[0]);
+						teamBG <- (m.contents[1]);
+						targetPoint <- nameBadGuy.location;
+						write "\t"+name +": going to get: " + nameBadGuy;
+						doingSomething <-true;
+					}
+				}
+			}
+			if r = 0 and team = "Real" and cur2 != m.contents[0] and cur != m.contents[0]{
+				cur2 <- m.contents[0];
+				hoolig <- float(m.contents[2]);
+				//if guard really happy(above average), his team(Real) and guy not very hooligan
+				if happines > 40 and m.contents[1] = team and hoolig < 0.75 {
+					ask Supporters{
+						//let go, and reset warnings
+						if m.contents[0] = self{
+							write self.name +" number of warnings "+ self.warning;
+							self.warning <- 0;
+							write "\t"+ myself.name +": he is not a bad guy, I let "+ self.name + "("+ self.team+")"+" go!" ;
+							write self.name +" number of warnings "+ self.warning;
+							myself.doingSomething <- false;
+							myself.nameBadGuy <- nil;
+							myself.teamBG <- nil;
+							myself.targetPoint <- nil;
+						}
+					}
+				}
+				else{
+					if doingSomething2 = true{
+						if  m.contents[0] != nameBadGuy{
+							write "\t"+"added to waiting list of " + name;
+							add m.contents[0] to: nextTn2;
+							add m.contents[1] to: nextTnT2;
+						}
+					}
+					if doingSomething2 = false{
+						nameBadGuy <- (m.contents[0]);
+						teamBG <- (m.contents[1]);
+						targetPoint2 <- nameBadGuy.location;
+						write "\t"+name +": going to get: " + nameBadGuy;
+						doingSomething2 <-true;
+					}
+				}
+			}
+		}
+	}
+	
+	reflex chase when: doingSomething and nameBadGuy != nil and team = "Barca"{
+		ask Supporters {
+			if myself.nameBadGuy.name = self.name and myself.doingSomething and myself.nameBadGuy != nil and myself.team = "Barca"{
+				myself.targetPoint <- self.location;
+			}
+		}
+	}
+	reflex chase2 when: doingSomething2 and nameBadGuy != nil and team = "Real"{
+		ask Supporters {
+			if myself.nameBadGuy.name = self.name and myself.doingSomething2 and myself.nameBadGuy != nil and myself.team = "Real"{
+				myself.targetPoint2 <- self.location;
+			}
+		}
+	}
+	
+	reflex foundBadGuy when: targetPoint != nil and location distance_to(targetPoint) < 2 and team = "Barca"{
+		ask Supporters{
+			if myself.doingSomething = true and myself.nameBadGuy.name = self.name {
+				myself.doingSomething <- false;
+				myself.nameBadGuy <- nil;
+				myself.teamBG <- nil;
+				myself.targetPoint <- nil;
+				write "\t"+myself.name+" killed: "+ self.name +"--";
+				self.havetoDie <- true;
+				cur <- nil;
+			}
+			
+		}
+		ask Journalists{
+			if myself.doingSomething = true and myself.nameBadGuy.name = self.name {
+				myself.doingSomething <- false;
+				myself.nameBadGuy <- nil;
+				myself.targetPoint <- nil;
+				myself.teamBG <- nil;
+				write "\t"+myself.name+" killed: "+ self.name +"--";
+				self.havetoDie <- true;
+				cur <- nil;
+			}
+		}
+		
+		if doingSomething = false and !empty(nextTn){
+			nameBadGuy <- first(nextTn);
+			remove first(nextTn) from: nextTn;
+			teamBG <- first(nextTnT);
+			remove first(nextTnT) from: nextTnT;
+			targetPoint <- nameBadGuy.location;
+			doingSomething <- true;
+		}
+	}
+	reflex foundBadGuy2 when: targetPoint2 != nil and location distance_to(targetPoint2) < 2 and team = "Real"{
+		ask Supporters{
+			if myself.doingSomething2 = true and myself.nameBadGuy.name = self.name {
+				myself.doingSomething2 <- false;
+				myself.nameBadGuy <- nil;
+				myself.teamBG <- nil;
+				myself.targetPoint2 <- nil;
+				write "\t"+myself.name+" killed: "+ self.name +"-------------";
+				self.havetoDie <- true;	
+				cur2 <- nil;
+			}
+			
+		}
+		ask Journalists{
+			if myself.doingSomething2 = true and myself.nameBadGuy.name = self.name {
+				myself.nameBadGuy <- nil;
+				myself.teamBG <- nil;
+				myself.targetPoint2 <- nil;
+				self.havetoDie <- true;
+				write "\t"+myself.name+" killed: "+ self.name +"-------------";
+				myself.doingSomething2 <- false;
+				cur2 <- nil;
+			}
+		}
+		if doingSomething2 = false and !empty(nextTn2){
+			nameBadGuy <- first(nextTn2);
+			remove first(nextTn2) from: nextTn2;
+			teamBG <- first(nextTnT2);
+			remove first(nextTnT2) from: nextTnT2;
+			
+			targetPoint2 <- nameBadGuy.location;
+			doingSomething2 <- true;
+		}
+	}
+	
+	aspect default{
+		draw sphere(3) at: location + {0.0,0.0,2.0} color: myColor;
+		draw pyramid(4) at: location color: myColor;
+	}
+}
+
+species Journalists skills: [fipa, moving]{
+	point targetPoint <- nil;
+	rgb myColor <- #darkgreen;
+	float hooliganlevel<-rnd(1.0);
+	float happiness<-50.0;
+	float generosity<-rnd(1.0);
+	string team;
+	int nDrinks<-0;
+	float intense<-rnd(1.0);
+	float acceptnoisy<-rnd(1.0);
+	float changeplace<-time + rnd(70,200);
+	bool working<-true;
+	bool havetoDie;
+	bool reported <- false;
+	bool inter <- false;
+	float t <- float(rnd(70,100));
+	agent sinter <- nil;
+	point sloc;
+	
+	reflex die when: havetoDie = true{
+		do die;
+	}
+	
+	reflex moveToTarget when: targetPoint != nil and inter = false{
+		do goto target:targetPoint;
+	}
+	
+	reflex newplace when: time > changeplace and inter = false{
+			int aux<-rnd(3);
+			if aux<3{
+				int aux2<-rnd(8);
+				targetPoint<-LocationJournalists[aux2] + {rnd(-2.0,2.0),rnd(-2.0,2.0),0};
+				changeplace<-time + rnd(70.0,200.0);
+			}
+			if aux=3{
+				targetPoint<-Bars[rnd(2)];
+				changeplace<-time + rnd(70.0,200.0);
+				working<-false;
+				happiness<-happiness+2.0;
+			}
+	}
+	
+	reflex askSupp when: inter = false {
+		ask Supporters at_distance(5){
+			if self.askedInter = false and myself.inter = false and self.inmatch = false{
+				int res <- rnd(20);
+				self.askedInter <- true;
+				if res = 0 and self.inter = false {
+					if self.team = myself.team{
+							write self.name+"("+self.team+")" + " accepts interview to becasue is on my team: " + myself.name +"("+myself.team+")";
+							write "Time: "+time;
+							myself.inter <- true;
+							self.inter <- true;
+							myself.sloc <- self.targetPoint;
+							self.targetPoint <- myself.location + {0,2,0}; 
+							myself.sinter <- self;
+							myself.t <- time + myself.t;
+						}
+						else{
+							if self.hooliganlevel+0.3 > myself.hooliganlevel and self.hooliganlevel-0.3 < myself.hooliganlevel{
+								write self.name+"("+self.team+")" + " accepts interview even is not on my team to: " + myself.name+"("+myself.team+")";
+								//write "Time: "+time;
+								myself.inter <- true;
+								self.inter <- true;
+								myself.sloc <- self.targetPoint;
+								self.targetPoint <- myself.location + {0,2,0}; 
+								myself.sinter <- self;
+								myself.t <- time + myself.t;
+							}
+						}	
+				}
+				else {
+					//write self.name + " declines interview to: "+ myself.name;
+				}
+			}
+		}
+	}
+	
+	reflex askPlay when: inter = false{
+		ask Players at_distance(5){
+			if self.askedInter = false and myself.inter = false and self.matchs = false{
+				int res <- rnd(10);
+				self.askedInter <- true;
+				if res = 0 and self.inter = false {
+					if self.team = self.team{
+							write self.name + " accepts interview to: " + myself.name;
+							write "Time"+time;
+							myself.inter <- true;
+							self.inter <- true;
+							myself.sloc <- self.targetPoint;
+							self.targetPoint <- myself.location + {0,2,0}; 
+							myself.sinter <- self;
+							myself.t <- time + myself.t;
+						}
+						else{
+							if self.happiness > 50{
+								write self.name + " accepts interview even is not on my team to: " + myself.name;
+								//write "Time"+time;
+								myself.inter <- true;
+								self.inter <- true;
+								myself.sloc <- self.targetPoint;
+								self.targetPoint <- myself.location + {0,2,0}; 
+								myself.sinter <- self;
+								myself.t <- time + myself.t;
+							}
+						}	
+				}
+				else {
+					//write self.name + " declines interview to: "+ myself.name;
+				}
+			}
+		}
+	}
+	
+	reflex changeInter when: inter = true and time = t{
+		ask Supporters{
+			if self = myself.sinter{
+				write self.name + " finished interview: "+ myself.name;
+				write "Time: "+time;
+				self.targetPoint <- myself.sloc;
+				self.inter <- false;
+				myself.inter <- false;
+				myself.sinter <- nil;
+				myself.t <-0.0;
+				myself.sloc <- {0,0,0};
+				myself.changeplace<-time + rnd(70,200);
+			}
+		}
+		ask Players{
+			if self = myself.sinter{
+				write self.name + " finished interview: "+ myself.name;
+				write "Time: "+time;
+				self.targetPoint <- myself.sloc;
+				self.inter <- false;
+				myself.inter <- false;
+				myself.sinter <- nil;
+				myself.t <-0.0;
+				myself.sloc <- {0,0,0};
+				myself.changeplace<-time + rnd(70,200);
+				
+			}
+		}
+	}
+	
+	reflex enterStore when: targetPoint != nil and location distance_to(targetPoint) < 2 {
+		targetPoint<-nil;
+	}
+
+	aspect default{
+		draw sphere(1) at: location + {0.0,0.0,1.0} color: myColor;
+		draw pyramid(2) at: location color: myColor;
+	}
+}
+
+species Players skills: [fipa, moving]{
+	point targetPoint <- nil;
+	string team;
+	float happiness<-50.0;
+	bool matchs<-false;
+	bool thirsty<-false;
+	float counter<-0.0;
+	bool tofanzone<-false;
+	bool inter;
+	bool askedInter;
+	bool tohotel<-false;
+	
+	reflex state when: thirsty = false and matchs = false and inter = false and targetPoint=nil and time mod 5 = 0 and time>counter{
+		int rand <- rnd(1500);
+		if (rand < 15 and rand >5){
+			thirsty <- true;
+			targetPoint<-Bars[rnd(2)];
+			happiness<- happiness-1.0;
+		}
+		if (rand>1450){
+			if team='Real'{
+				targetPoint<-{180,20,0};
+				tohotel<-false;
+			}
+			if team='Barca'{
+				targetPoint<-{20,180,0};
+				tofanzone<-true;
+				tohotel<-false;
+			}
+		}
+		if(rand<130 and rand>80){
+			tohotel<-true;
+		}
+		
+	}
+	
+	reflex partido when: !empty(informs){
+		//calcular utility y comparar con la anterior, si es mas grande ir a la location del inform.
+		loop m over: informs {
+				if m.contents[2]='Starting Match'{
+					targetPoint<- {rnd(70.0,130.0),rnd(70.0,130.0),0.0};
+					matchs<-true;
+				}
+				if m.contents[2]='Match finished'{
+					targetPoint<-{10.0,10.0,0.0};
+					if team='Real'{
+						int result <- int(m.contents[3])-int(m.contents[4]);
+						happiness<-happiness+result*3;
+						if happiness>100.0{
+							happiness<-100.0;
+						}
+						if happiness<0.0{
+							happiness<-0.0;
+						}
+						write happiness;
+						matchs<-false;
+					}	
+					if team='Barca'{
+						int result <- int(m.contents[4])-int(m.contents[3]);
+						happiness<-happiness+result*3;
+						if happiness>100.0{
+							happiness<-100.0;
+						}
+						if happiness<0.0{
+							happiness<-0.0;
+						}
+						write happiness;
+						matchs<-false;
+					}
+				}
+	
+	
+	}
+	
+	}
+	
+	reflex beIdle when: targetPoint = nil{
+		do wander(0.5,360.0,square(5));
+	}
+	
+	reflex moveToTarget when: targetPoint != nil{
+		do goto target:targetPoint;
+	}
+	
+	reflex enterStadium when: targetPoint != nil and location distance_to(targetPoint) < 2  and matchs{
+		askedInter <- false;
+		ask Supporters at_distance(50){
+				if self.hooliganlevel>0.650{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.noisy*self.hooliganlevel*3;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-self.noisy*self.hooliganlevel*3;
+						}
+					}
+				if self.hooliganlevel<0.650 and self.hooliganlevel>0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.noisy*self.hooliganlevel*2;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-self.noisy*self.hooliganlevel*2;
+						}
+					}
+				if self.hooliganlevel<0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.noisy*self.hooliganlevel;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-self.noisy*self.hooliganlevel;
+						}				
+					}
+				}
+			
+				targetPoint<-nil;
+	}
+	
+	reflex enterBar when: targetPoint != nil and location distance_to(targetPoint) < 2 and thirsty=true{
+			ask Supporters at_distance(7){
+				if self.hooliganlevel>0.650{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness-self.noisy-self.hooliganlevel;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-self.noisy-self.hooliganlevel*2;
+						}
+					}
+				if self.hooliganlevel<0.650 and self.hooliganlevel>0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness-self.noisy;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-self.noisy;
+						}
+					}
+				if self.hooliganlevel<0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.hooliganlevel+self.generosity;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness;
+						}				
+					}
+				}
+				}
+		
+	reflex enterZone when: targetPoint != nil and location distance_to(targetPoint) < 2 and tofanzone=true{
+			ask Supporters at_distance(7){
+				if self.hooliganlevel>0.650{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.noisy+self.hooliganlevel;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-self.noisy-self.hooliganlevel*3;
+						}
+					}
+				if self.hooliganlevel<0.650 and self.hooliganlevel>0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.noisy+self.hooliganlevel;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-self.noisy-self.hooliganlevel*3;
+						}
+					}
+				if self.hooliganlevel<0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.hooliganlevel;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-self.hooliganlevel*3-self.noisy;
+						}				
+					}
+				}
+				
+		}
+				
+	reflex enterHotel when: targetPoint != nil and location distance_to(targetPoint) < 2 and tohotel=true{
+			ask Supporters at_distance(7){
+				if self.hooliganlevel>0.650{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.noisy+self.hooliganlevel;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-self.noisy-self.hooliganlevel*3;
+						}
+					}
+				if self.hooliganlevel<0.650 and self.hooliganlevel>0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.noisy+self.hooliganlevel;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-self.noisy-self.hooliganlevel*3;
+						}
+					}
+				if self.hooliganlevel<0.350{
+					if self.team=myself.team{
+						myself.happiness<-myself.happiness+self.hooliganlevel;
+						}
+					if self.team!=myself.team{
+						myself.happiness<-myself.happiness-self.hooliganlevel*3-self.noisy;
+						}				
+					}
+				}
+				
+		targetPoint<-nil;
+		counter<-time+rnd(30.0,150.0);
+		
+	}
+	
+	aspect default{
+		if team='Real'{
+		draw sphere(2) at: location + {0.0,0.0,1.0} color: #white;
+		draw pyramid(4) at: location color: #white;
+		}
+		if team='Barca'{
+		draw sphere(2) at: location + {0.0,0.0,1.0} color: #blue;
+		draw pyramid(4) at: location color: #red;
+		}
+		
+	}
+}
+
+species Vendors skills: [fipa, moving]{
+	rgb myColor <- #salmon;
+	float happiness<-50.0;
+	float money<-0.0;
+
+	aspect default{
+		draw sphere(1) at: location + {0.0,0.0,1.0} color: myColor;
+		draw pyramid(2) at: location color: myColor;
+		draw square(14) at: location color: #brown;
+	}
+}
+
+species Stadium skills: [fipa]{
+	image_file pitch <- image_file("../includes/football.png");
+	float timeduration<-180.0;
+	bool over<-true;
+	float starttime;
+	int goalreal<-0;
+	int goalbarca<-0;
+	
+	reflex happens when: (over=true){
+		over<-false;
+		starttime<-time+rnd(500,650);	
+		goalreal<-0;
+		goalbarca<-0;
+	}
+	
+	reflex startGame when: (over=false and time=starttime-200){
+		do start_conversation with: [ to :: list(Supporters), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [self, location,'Starting Match']];
+		do start_conversation with: [ to :: list(Players), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [self, location,'Starting Match']];	
+		do start_conversation with: [ to :: list(Journalists), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [self, location,'Starting Match']];	
+		
+		goalreal<-rnd(5);
+		goalbarca<-rnd(4);
+	}
+	
+	reflex finishGame when: (time>starttime+timeduration) and over=false{
+		over<-true;
+		do start_conversation with: [ to :: list(Supporters), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [self, location,'Match finished',goalreal,goalbarca]];
+		write '------------';
+		write 'Real';
+		write goalreal;
+		write 'Barca';
+		write goalbarca;
+		write '------------';
+		do start_conversation with: [ to :: list(Players), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [self, location,'Match finished',goalreal,goalbarca]];
+		do start_conversation with: [ to :: list(Journalists), protocol :: 'fipa-contract-net', performative :: 'inform', contents :: [self, location,'Match finished',goalreal,goalbarca]];		
+	}
+	
+	aspect default{
+		draw pitch size: 75;
+		loop i over: [-40,-35,-30,-25,-20,-15,-10,-5,0,5,10,15,20,25,30,35,40]{
+			draw square(6) at: location - {i,40.0,0.0} color: #orange;
+			draw square(6) at: location + {i,40.0,0.0} color: #orange;
+			draw square(6) at: location - {40.0,i,0.0} color: #orange;
+			draw square(6) at: location + {40.0,i,0.0} color: #orange;
+		}
+	}
+}
+
+species Bar skills: [fipa]{
+	rgb myColor <- #yellow;
+
+	aspect default{
+		draw square(18) at: location  color: myColor;
+	}
+}
+
+species Fanzone skills: [fipa]{
+	image_file zone1 <- image_file("../includes/real.png");
+	image_file zone2 <- image_file("../includes/barca.png");
+	string trait;
+	
+	aspect default{
+		if trait='Real'{
+				draw zone1 size: 30;	
+		}
+		if trait='Barca'{
+				draw zone2 size: 30;	
+		}
+
+	}
+}
+
+species Hotel skills: [fipa]{
+
+	string trait;
+	
+	aspect default{
+		if trait='Real'{
+				draw square(18) at: location  color: #chocolate;	
+		}
+		if trait='Barca'{
+				draw square(18) at: location  color: #chocolate;	
+		}
+
+	}
+}
+
+experiment main type: gui {
+	output{		
+	    monitor "Current hour" value: current_date.hour;
+	    monitor "Average of happiness value" value: avGlobal;
+	    monitor "Number of HAPPY people" value: Supporters count (each.happy=true);
+	    monitor "Number of SAD people" value: Supporters count (each.happy=false);
+	    
+	    
+	    display chart refresh: every(5 #cycles) {
+	        chart "Happiness Rate" type: pie style: spline {
+	        data "Happy" value: Supporters count (each.happy=true) color: #green marker: false;
+	        data "Sad" value: Supporters count (each.happy=false) color: #red marker: false;
+	        }
+	    }
+		display map type: opengl{
+			species Supporters;
+			species Security;
+			species Journalists;
+			species Players;
+			species Vendors;
+			species Stadium;
+			species Fanzone;
+			species Bar;
+			species Hotel;	
+		}
+	}
+}
